@@ -40,7 +40,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
 
 --- a/drivers/net/bonding/bond_3ad.c
 +++ b/drivers/net/bonding/bond_3ad.c
-@@ -119,6 +119,38 @@ static void ad_marker_response_received(
+@@ -115,6 +115,38 @@ static void ad_marker_response_received(struct bond_marker *marker,
  					struct port *port);
  static void ad_update_actor_keys(struct port *port, bool reset);
  
@@ -79,7 +79,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  
  /* ================= api to bonding and kernel code ================== */
  
-@@ -481,7 +513,6 @@ static u16 __ad_timer_to_ticks(u16 timer
+@@ -478,7 +510,6 @@ static u16 __ad_timer_to_ticks(u16 timer_type, u16 par)
  	return retval;
  }
  
@@ -87,7 +87,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  /* ================= ad_rx_machine helper functions ================== */
  
  /**
-@@ -1163,6 +1194,28 @@ static void ad_mux_machine(struct port *
+@@ -1162,6 +1193,28 @@ static void ad_mux_machine(struct port *port, bool *update_slave_arr)
  			ad_disable_collecting_distributing(port,
  							   update_slave_arr);
  			port->ntt = true;
@@ -116,15 +116,15 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  			break;
  		case AD_MUX_COLLECTING_DISTRIBUTING:
  			port->actor_oper_port_state |= LACP_STATE_COLLECTING;
-@@ -2066,6 +2119,7 @@ static void ad_enable_collecting_distrib
- 					      bool *update_slave_arr)
- {
- 	if (port->aggregator->is_active) {
+@@ -2070,6 +2123,7 @@ static void ad_enable_collecting_distributing(struct port *port,
+ 	struct aggregator *aggregator = rcu_dereference(port->aggregator);
+ 
+ 	if (aggregator->is_active) {
 +		struct bond_cb *lag_cb_main;
  		slave_dbg(port->slave->bond->dev, port->slave->dev,
  			  "Enabling port %d (LAG %d)\n",
  			  port->actor_port_number,
-@@ -2073,6 +2127,14 @@ static void ad_enable_collecting_distrib
+@@ -2077,6 +2131,14 @@ static void ad_enable_collecting_distributing(struct port *port,
  		__enable_port(port);
  		/* Slave array needs update */
  		*update_slave_arr = true;
@@ -139,7 +139,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	}
  }
  
-@@ -2832,6 +2894,102 @@ int bond_3ad_get_active_agg_info(struct
+@@ -2840,6 +2902,102 @@ int bond_3ad_get_active_agg_info(struct bonding *bond, struct ad_info *ad_info)
  	return ret;
  }
  
@@ -244,15 +244,15 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  {
 --- a/drivers/net/bonding/bond_main.c
 +++ b/drivers/net/bonding/bond_main.c
-@@ -210,6 +210,7 @@ atomic_t netpoll_block_tx = ATOMIC_INIT(
+@@ -210,6 +210,7 @@ atomic_t netpoll_block_tx = ATOMIC_INIT(0);
  #endif
  
  unsigned int bond_net_id __read_mostly;
 +static unsigned long bond_id_mask = 0xFFFFFFF0;
  
- static const struct flow_dissector_key flow_keys_bonding_keys[] = {
- 	{
-@@ -287,6 +288,19 @@ const char *bond_mode_name(int mode)
+ DEFINE_STATIC_KEY_FALSE(bond_bcast_neigh_enabled);
+ 
+@@ -289,6 +290,19 @@ const char *bond_mode_name(int mode)
  	return names[mode];
  }
  
@@ -272,7 +272,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  /**
   * bond_dev_queue_xmit - Prepare skb for xmit.
   *
-@@ -1231,6 +1245,21 @@ void bond_change_active_slave(struct bon
+@@ -1241,6 +1255,21 @@ void bond_change_active_slave(struct bonding *bond, struct slave *new_active)
  			if (BOND_MODE(bond) == BOND_MODE_8023AD)
  				bond_3ad_handle_link_change(new_active, BOND_LINK_UP);
  
@@ -294,7 +294,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  			if (bond_is_lb(bond))
  				bond_alb_handle_link_change(bond, new_active, BOND_LINK_UP);
  		} else {
-@@ -1876,6 +1905,7 @@ int bond_enslave(struct net_device *bond
+@@ -1850,6 +1879,7 @@ int bond_enslave(struct net_device *bond_dev, struct net_device *slave_dev,
  	const struct net_device_ops *slave_ops = slave_dev->netdev_ops;
  	struct slave *new_slave = NULL, *prev_slave;
  	struct sockaddr_storage ss;
@@ -302,7 +302,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	int link_reporting;
  	int res = 0, i;
  
-@@ -2336,6 +2366,13 @@ skip_mac_set:
+@@ -2323,6 +2353,13 @@ int bond_enslave(struct net_device *bond_dev, struct net_device *slave_dev,
  		   bond_is_active_slave(new_slave) ? "an active" : "a backup",
  		   new_slave->link != BOND_LINK_DOWN ? "an up" : "a down");
  
@@ -316,7 +316,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	/* enslave is successful */
  	bond_queue_slave_event(new_slave);
  	return 0;
-@@ -2401,6 +2438,13 @@ err_undo_flags:
+@@ -2388,6 +2425,13 @@ int bond_enslave(struct net_device *bond_dev, struct net_device *slave_dev,
  		}
  	}
  
@@ -330,7 +330,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	return res;
  }
  
-@@ -2422,6 +2466,7 @@ static int __bond_release_one(struct net
+@@ -2409,6 +2453,7 @@ static int __bond_release_one(struct net_device *bond_dev,
  	struct bonding *bond = netdev_priv(bond_dev);
  	struct slave *slave, *oldcurrent;
  	struct sockaddr_storage ss;
@@ -338,7 +338,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	int old_flags = bond_dev->flags;
  	netdev_features_t old_features = bond_dev->features;
  
-@@ -2444,6 +2489,13 @@ static int __bond_release_one(struct net
+@@ -2431,6 +2476,13 @@ static int __bond_release_one(struct net_device *bond_dev,
  
  	bond_set_slave_inactive_flags(slave, BOND_SLAVE_NOTIFY_NOW);
  
@@ -352,7 +352,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	bond_sysfs_slave_del(slave);
  
  	/* recompute stats just before removing the slave */
-@@ -2772,8 +2824,8 @@ static void bond_miimon_commit(struct bo
+@@ -2759,8 +2811,8 @@ static void bond_miimon_commit(struct bonding *bond)
  	struct slave *slave, *primary, *active;
  	bool do_failover = false;
  	struct list_head *iter;
@@ -363,7 +363,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  
  	bond_for_each_slave(bond, slave, iter) {
  		switch (slave->link_new_state) {
-@@ -2811,6 +2863,10 @@ static void bond_miimon_commit(struct bo
+@@ -2798,6 +2850,10 @@ static void bond_miimon_commit(struct bonding *bond)
  				bond_set_active_slave(slave);
  			}
  
@@ -374,7 +374,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  			slave_info(bond->dev, slave->dev, "link status definitely up, %u Mbps %s duplex\n",
  				   slave->speed == SPEED_UNKNOWN ? 0 : slave->speed,
  				   slave->duplex ? "full" : "half");
-@@ -2859,6 +2915,14 @@ static void bond_miimon_commit(struct bo
+@@ -2852,6 +2908,14 @@ static void bond_miimon_commit(struct bonding *bond)
  		unblock_netpoll_tx();
  	}
  
@@ -389,7 +389,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	bond_set_carrier(bond);
  }
  
-@@ -4111,11 +4175,221 @@ static inline u32 bond_eth_hash(struct s
+@@ -4102,11 +4166,221 @@ static inline u32 bond_eth_hash(struct sk_buff *skb, const void *data, int mhoff
  		return 0;
  
  	ep = (struct ethhdr *)(data + mhoff);
@@ -612,7 +612,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  {
  	const struct ipv6hdr *iph6;
  	const struct iphdr *iph;
-@@ -5241,15 +5515,16 @@ static netdev_tx_t bond_3ad_xor_xmit(str
+@@ -5277,15 +5551,16 @@ static netdev_tx_t bond_3ad_xor_xmit(struct sk_buff *skb,
  				     struct net_device *dev)
  {
  	struct bonding *bond = netdev_priv(dev);
@@ -635,19 +635,22 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
 +	return bond_dev_queue_xmit(bond, skb, outdev);
  }
  
- /* in broadcast mode, we send everything to all usable interfaces. */
-@@ -5499,8 +5774,9 @@ static netdev_tx_t __bond_start_xmit(str
+ /* in broadcast mode, we send everything to all or usable slave interfaces.
+@@ -5545,11 +5820,11 @@ static netdev_tx_t __bond_start_xmit(struct sk_buff *skb, struct net_device *dev
  		return bond_xmit_roundrobin(skb, dev);
  	case BOND_MODE_ACTIVEBACKUP:
  		return bond_xmit_activebackup(skb, dev);
--	case BOND_MODE_8023AD:
- 	case BOND_MODE_XOR:
++	case BOND_MODE_XOR:
 +		return bond_xmit_xor(skb, dev);
-+	case BOND_MODE_8023AD:
+ 	case BOND_MODE_8023AD:
+ 		if (bond_should_broadcast_neighbor(skb, dev))
+ 			return bond_xmit_broadcast(skb, dev, false);
+-		fallthrough;
+-	case BOND_MODE_XOR:
  		return bond_3ad_xor_xmit(skb, dev);
  	case BOND_MODE_BROADCAST:
- 		return bond_xmit_broadcast(skb, dev);
-@@ -5937,6 +6213,9 @@ static void bond_destructor(struct net_d
+ 		return bond_xmit_broadcast(skb, dev, true);
+@@ -5989,6 +6264,9 @@ static void bond_destructor(struct net_device *bond_dev)
  	if (bond->wq)
  		destroy_workqueue(bond->wq);
  
@@ -657,7 +660,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	free_percpu(bond->rr_tx_counter);
  }
  
-@@ -6491,6 +6770,11 @@ int bond_create(struct net *net, const c
+@@ -6545,6 +6823,11 @@ int bond_create(struct net *net, const char *name)
  
  	bond_work_init_all(bond);
  
@@ -671,7 +674,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	return res;
 --- a/include/net/bond_3ad.h
 +++ b/include/net/bond_3ad.h
-@@ -304,6 +304,12 @@ int bond_3ad_lacpdu_recv(const struct sk
+@@ -305,6 +305,12 @@ int bond_3ad_lacpdu_recv(const struct sk_buff *skb, struct bonding *bond,
  			 struct slave *slave);
  int bond_3ad_set_carrier(struct bonding *bond);
  void bond_3ad_update_lacp_rate(struct bonding *bond);
@@ -695,7 +698,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  #ifdef CONFIG_NET_POLL_CONTROLLER
  extern atomic_t netpoll_block_tx;
  
-@@ -263,6 +265,7 @@ struct bonding {
+@@ -266,6 +268,7 @@ struct bonding {
  	struct mutex ipsec_lock;
  #endif /* CONFIG_XFRM_OFFLOAD */
  	struct bpf_prog *xdp_prog;
@@ -703,7 +706,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  };
  
  #define bond_slave_get_rcu(dev) \
-@@ -706,6 +709,11 @@ struct bond_vlan_tag *bond_verify_device
+@@ -712,6 +715,11 @@ struct bond_vlan_tag *bond_verify_device_path(struct net_device *start_dev,
  					      int level);
  int bond_update_slave_arr(struct bonding *bond, struct slave *skipslave);
  void bond_slave_arr_work_rearm(struct bonding *bond, unsigned long delay);
@@ -713,9 +716,9 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
 +				    __be16 *layer4hdr);
 +
  void bond_work_init_all(struct bonding *bond);
+ void bond_work_cancel_all(struct bonding *bond);
  
- #ifdef CONFIG_PROC_FS
-@@ -810,4 +818,17 @@ static inline netdev_tx_t bond_tx_drop(s
+@@ -817,4 +825,17 @@ static inline netdev_tx_t bond_tx_drop(struct net_device *dev, struct sk_buff *s
  	return NET_XMIT_DROP;
  }
  

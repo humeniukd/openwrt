@@ -54,10 +54,9 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
  net/l2tp/l2tp_core.c          |  24 ++++
  net/l2tp/l2tp_core.h          |   2 +
  6 files changed, 391 insertions(+), 6 deletions(-)
-
 --- a/drivers/net/ppp/ppp_generic.c
 +++ b/drivers/net/ppp/ppp_generic.c
-@@ -266,6 +266,24 @@ struct ppp_net {
+@@ -255,6 +255,24 @@ struct ppp_net {
  #define seq_before(a, b)	((s32)((a) - (b)) < 0)
  #define seq_after(a, b)		((s32)((a) - (b)) > 0)
  
@@ -82,7 +81,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
  /* Prototypes. */
  static int ppp_unattached_ioctl(struct net *net, struct ppp_file *pf,
  			struct file *file, unsigned int cmd, unsigned long arg);
-@@ -3478,6 +3496,7 @@ ppp_connect_channel(struct channel *pch,
+@@ -3498,6 +3516,7 @@ ppp_connect_channel(struct channel *pch, int unit)
  	struct ppp_net *pn;
  	int ret = -ENXIO;
  	int hdrlen;
@@ -90,7 +89,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
  
  	pn = ppp_pernet(pch->chan_net);
  
-@@ -3510,6 +3529,8 @@ ppp_connect_channel(struct channel *pch,
+@@ -3534,6 +3553,8 @@ ppp_connect_channel(struct channel *pch, int unit)
  	++ppp->n_channels;
  	pch->ppp = ppp;
  	refcount_inc(&ppp->file.refcnt);
@@ -99,7 +98,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
  	ppp_unlock(ppp);
  	ret = 0;
  
-@@ -3517,6 +3538,14 @@ ppp_connect_channel(struct channel *pch,
+@@ -3541,6 +3562,14 @@ ppp_connect_channel(struct channel *pch, int unit)
  	write_unlock_bh(&pch->upl);
   out:
  	mutex_unlock(&pn->all_ppp_mutex);
@@ -114,7 +113,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
  	return ret;
  }
  
-@@ -3534,6 +3563,13 @@ ppp_disconnect_channel(struct channel *p
+@@ -3558,6 +3587,13 @@ ppp_disconnect_channel(struct channel *pch)
  	pch->ppp = NULL;
  	write_unlock_bh(&pch->upl);
  	if (ppp) {
@@ -127,8 +126,8 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
 +
  		/* remove it from the ppp unit's list */
  		ppp_lock(ppp);
- 		list_del(&pch->clist);
-@@ -3613,6 +3649,188 @@ static void *unit_find(struct idr *p, in
+ 		list_del_rcu(&pch->clist);
+@@ -3649,6 +3685,193 @@ static void *unit_find(struct idr *p, int n)
  	return idr_find(p, n);
  }
  
@@ -150,8 +149,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
 +	ppp = netdev_priv(dev);
 +
 +	ppp_xmit_lock(ppp);
-+	ppp->stats64.tx_packets += tx_packets;
-+	ppp->stats64.tx_bytes += tx_bytes;
++	dev_sw_netstats_tx_add(ppp->dev, tx_packets, tx_bytes);
 +	ppp->dev->stats.tx_errors += tx_errors;
 +	ppp->dev->stats.tx_dropped += tx_dropped;
 +	if (tx_packets)
@@ -159,8 +157,14 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
 +	ppp_xmit_unlock(ppp);
 +
 +	ppp_recv_lock(ppp);
-+	ppp->stats64.rx_packets += rx_packets;
-+	ppp->stats64.rx_bytes += rx_bytes;
++	if (rx_packets || rx_bytes) {
++		struct pcpu_sw_netstats *tstats = this_cpu_ptr(ppp->dev->tstats);
++
++		u64_stats_update_begin(&tstats->syncp);
++		u64_stats_add(&tstats->rx_packets, rx_packets);
++		u64_stats_add(&tstats->rx_bytes, rx_bytes);
++		u64_stats_update_end(&tstats->syncp);
++	}
 +	ppp->dev->stats.rx_errors += rx_errors;
 +	ppp->dev->stats.rx_dropped += rx_dropped;
 +	if (rx_packets)
@@ -317,7 +321,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
  /* Module/initialization stuff */
  
  module_init(ppp_init);
-@@ -3629,6 +3847,8 @@ EXPORT_SYMBOL(ppp_input_error);
+@@ -3665,6 +3883,8 @@ EXPORT_SYMBOL(ppp_input_error);
  EXPORT_SYMBOL(ppp_output_wakeup);
  EXPORT_SYMBOL(ppp_register_compressor);
  EXPORT_SYMBOL(ppp_unregister_compressor);
@@ -345,7 +349,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
  
  /* per-net private data for this module */
  static unsigned int pppoe_net_id __read_mostly;
-@@ -645,6 +646,7 @@ static int pppoe_connect(struct socket *
+@@ -651,6 +652,7 @@ static int pppoe_connect(struct socket *sock, struct sockaddr *uservaddr,
  	if (stage_session(po->pppoe_pa.sid)) {
  		pppox_unbind_sock(sk);
  		pn = pppoe_pernet(sock_net(sk));
@@ -353,16 +357,16 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
  		delete_item(pn, po->pppoe_pa.sid,
  			    po->pppoe_pa.remote, po->pppoe_ifindex);
  		if (po->pppoe_dev) {
-@@ -692,7 +694,7 @@ static int pppoe_connect(struct socket *
+@@ -698,7 +700,7 @@ static int pppoe_connect(struct socket *sock, struct sockaddr *uservaddr,
  
  		po->chan.mtu = dev->mtu - sizeof(struct pppoe_hdr) - 2;
  		po->chan.private = sk;
 -		po->chan.ops = &pppoe_chan_ops;
 +		po->chan.ops = (struct ppp_channel_ops *)&pppoe_chan_ops;
+ 		po->chan.direct_xmit = true;
  
  		error = ppp_register_net_channel(dev_net(dev), &po->chan);
- 		if (error) {
-@@ -995,9 +997,80 @@ static int pppoe_fill_forward_path(struc
+@@ -1003,9 +1005,80 @@ static int pppoe_fill_forward_path(struct net_device_path_ctx *ctx,
  	return 0;
  }
  
@@ -510,7 +514,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
  };
  
  struct ppp_channel {
-@@ -47,6 +61,38 @@ struct ppp_channel {
+@@ -46,6 +60,38 @@ struct ppp_channel {
  };
  
  #ifdef __KERNEL__
@@ -549,7 +553,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
  /* Called by the channel when it can send some more data. */
  extern void ppp_output_wakeup(struct ppp_channel *);
  
-@@ -76,6 +122,12 @@ extern int ppp_unit_number(struct ppp_ch
+@@ -75,6 +121,12 @@ extern int ppp_unit_number(struct ppp_channel *);
  /* Get the device name associated with a channel, or NULL if none */
  extern char *ppp_dev_name(struct ppp_channel *);
  
@@ -564,7 +568,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
   * The channel code must ensure that when it calls ppp_unregister_channel,
 --- a/net/l2tp/l2tp_core.c
 +++ b/net/l2tp/l2tp_core.c
-@@ -403,6 +403,30 @@ err_tlock:
+@@ -403,6 +403,30 @@ int l2tp_session_register(struct l2tp_session *session,
  }
  EXPORT_SYMBOL_GPL(l2tp_session_register);
  
@@ -597,7 +601,7 @@ Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
   *****************************************************************************/
 --- a/net/l2tp/l2tp_core.h
 +++ b/net/l2tp/l2tp_core.h
-@@ -231,6 +231,8 @@ struct l2tp_session *l2tp_session_get(co
+@@ -231,6 +231,8 @@ struct l2tp_session *l2tp_session_get(const struct net *net, u32 session_id);
  struct l2tp_session *l2tp_session_get_nth(struct l2tp_tunnel *tunnel, int nth);
  struct l2tp_session *l2tp_session_get_by_ifname(const struct net *net,
  						const char *ifname);
